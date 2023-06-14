@@ -1,0 +1,846 @@
+'//Written by Intern Kyle Franz - Summer of 2022
+'//Version 2000: attempt to clean up code and add accessibility to add work instructions (written from scratch)
+
+'//These variables are public so the user forms can get/set them
+Public WITypeRow As Integer 'Row of work instruction type in WI files
+Public IndexSheetname As String 'Name of sheet for respective work instruction type within WIIWB
+Public TableName As String 'Name of table for respective work instruction type within WIIWB, used for userform generation
+Public WIRow As String 'Row of work instruction in work instruction type table (i.e. 3 for 1.2um cores in Sintered Core WIs)
+Public StartDate As String 'Start date
+Public WIType As String 'Type of work instruction
+
+Sub SinteredCores_Click()
+    '//Set WIType and call Main
+    WIType = "Sintered Cores"
+    Call Main
+End Sub
+
+Sub FinishedCores_Click()
+    '//Set WIType and call Main
+    WIType = "Finished Cores"
+    Call Main
+End Sub
+
+Sub SinteredHalo_Click()
+    '//Set WIType and call Main
+    WIType = "Sintered Halo"
+    Call Main
+End Sub
+
+Sub FinishedHalo_Click()
+    '//Set WIType and call Main
+    WIType = "Finished Halo"
+    Call Main
+End Sub
+
+Sub FinishedPeptide_Click()
+    '//Set WIType and call Main
+    WIType = "Finished Peptide & Autoclave"
+    Call Main
+End Sub
+
+Sub BondedSil_Click()
+    '//Set WIType and call Main
+    WIType = "Bonded Sil"
+    Call Main
+End Sub
+
+Sub Other_Click()
+    WIType = ""
+    '//If only 6 items in table, no extra work instructions have been added, prompt user and exit
+    If Sheets("WI Files").ListObjects("WIFiles").ListRows.Count = 6 Then
+        MsgBox ("No other work instructions have been implemented")
+        Exit Sub
+    End If
+    
+    '//If not only 6 items in table, activate OtherWITypeForm to get WIType
+    OtherWITypeFOrm.Show
+    '//If WIType wasn't set (form was exited), exit
+    If WIType = "" Then Exit Sub
+    '//If WIType was set, call main
+    Call Main
+End Sub
+
+Sub Main()
+    '//Variable declarations are grouped by section where they are first used
+    
+    Dim WIIWB As Workbook 'Work instruction index workbook
+    Dim BatchType As String 'Name of finished batch of WI
+    Dim Precursor As String 'Name of batch precursor of WI
+    Dim UniquePrompts As String 'String containing unique prompts of WI
+    Dim PrintPages As String 'String containing which pages need to be printed
+
+    Dim WIName As String 'Work instruction name
+    Dim WSName As String 'name of work instruction worksheet within respectice work instruction file
+    Dim PSM As String 'particle size mode of part
+    Dim DBSheetname As String 'name of sheet for respective work instruction in Integrated QA Database
+    Dim FullPrefix As String 'full part prefix including year
+    Dim StandardMass As String 'standard core/seed mass
+    Dim PoreSize As String 'pore size of part
+    Dim WIWB As Workbook 'Work instruction workbook
+    Dim DBWB As Workbook 'Integrated QA Database workbook
+    Dim BatchNum(4) As String 'array of 2 digit batchnumbers for each split (max 5 elements: 0,1,2,3,4)
+    Dim BatchString(4) As String 'array of full batchstrings for each split (max 5 elements: 0,1,2,3,4)
+    Dim DBRowNum(4) As String 'array of number row in database for each split (max 5 elements: 0,1,2,3,4)
+    
+    Dim NoB As String 'number of precursor batches being used
+    Dim StdMassString As String 'prompt string for standard mass if applicable
+    Dim i As Integer 'used for looping through NoB to get input batch info
+    Dim TotalWeight As Double 'total weight of input batches
+    Dim TotalWeightString As String 'prompt string for current total weight
+    Dim InputLots(4) As String 'array of lot #s for input batches (max 5 elements: 0,1,2,3,4)
+    Dim InputWeights(4) As String 'array of weights for input batches (max 5 elements: 0,1,2,3,4)
+    
+    Dim BET_SSA(4) As String 'BET SSA of each precursor batch for bonded sils
+    Dim WeightedBET_SSA As Double 'Weighted average of input BET SSAs
+    Dim StartingPoreSize As String 'Pore Size of precursor for finished peptide
+    Dim ACSplits As String 'Number of autoclave splits for finished peptide
+    Dim ACSplitWeights(4) As String 'array of weights for ac split batches for finished peptide
+    Dim k As Integer 'used for looping through ACSplits to get mass of each split
+    Dim BatchSplits As String 'Number of batch splits (used for sintered halo)
+    Dim j As Integer 'used for looping through batchsplits to add each batchnum and batchstring
+    Dim SeedLot As String 'Lot of seed of intermediate core for large sintered cores
+    
+    Dim CheckString As String 'String for info check
+    Dim m As Integer 'used to loop through input batches for info check
+    Dim n As Integer 'used to loop through ACSplits for info check
+    
+    Dim o As Integer 'used for looping through batchsplits to set all batchstrings
+    Dim LotString As String 'all input lots in one string for some WIs
+    Dim p As Integer 'used for looping through number of batches to create LotString (w/ masses)
+    Dim q As Integer 'used for looping through number of batches to create LotString (w/ masses)
+    Dim r As Integer 'used for looping through number of batches to set all input lots and weights
+    Dim BatchWeight As Double 'total weight per batch
+    
+    Dim s As Integer 'used for looping through number of batches to create LotString (w/o masses)
+    Dim t As Integer 'used for looping through batchsplits to add info for each batch to DB
+    
+    Dim MainPrint As String 'substring of print pages for main print (i.e. excluding section in parenthesis)
+    Dim CurrentString As String 'substring of MainPrint that is about to printed
+    Dim RemainingString As String 'remaining portion of MainPrint that has not yet been printed
+    Dim PrintStart As Integer 'first page of section to be printed
+    Dim PrintEnd As Integer 'last page of section to be printed
+    Dim u As Integer 'used for looping to print for each batchsplit
+    Dim w As Integer 'used as counter for current cell while adding batchstrings for each split to sheet
+    Dim v As Integer 'used for looping batchsplits to add to sheet
+    Dim ACPrint As String 'substring of pages to print for each AC split (i.e. section in parenthesis)
+    Dim x As Integer 'used for looping through ACSplits to print for each split
+    Dim y As Integer 'used to for looping through ACSplits to add to recombine batches
+    Dim z As Integer 'used as counter for current cell of batches to be recombined with
+    
+    '//Reset public variables
+    WITypeRow = 0
+    IndexSheetname = ""
+    TableName = ""
+    WIRow = ""
+    StartDate = ""
+    
+    
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//                 GETTING DATA ABOUT WORK INSTRUCTION TYPE FROM TABLE                   //
+'///////////////////////////////////////////////////////////////////////////////////////////
+    
+    
+    '//Set WIIWB as reference to WI Index
+    Set WIIWB = ActiveWorkbook
+    
+    '//Get the correct row in "WI Files" sheet based on which button was clicked
+    WITypeRow = Application.Match(WIType, WIIWB.Sheets(2).Range("A:A"), 0)
+    
+    '//Get the index sheetname, index tablename, batchtype, precursor, and unique prompts from "WI Files" sheet
+    IndexSheetname = WIIWB.Sheets(2).Cells(WITypeRow, 3)
+    TableName = WIIWB.Sheets(2).Cells(WITypeRow, 4)
+    BatchType = WIIWB.Sheets(2).Cells(WITypeRow, 5)
+    Precursor = WIIWB.Sheets(2).Cells(WITypeRow, 6)
+    UniquePrompts = WIIWB.Sheets(2).Cells(WITypeRow, 7)
+    PrintPages = WIIWB.Sheets(2).Cells(WITypeRow, 8)
+    
+    '//Open the respective sheet within WI Index
+    WIIWB.Sheets(IndexSheetname).Activate
+    
+    
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//                       GETTING WORK INSTRUCTION FROM USERFORM                          //
+'///////////////////////////////////////////////////////////////////////////////////////////
+    
+    
+    '//Get WIRow from userforms
+    '//  Bonded Sil has unique form for easier use given the much greater number of options
+    If WIType = "Bonded Sil" Then
+        BondedSilForm.Show
+        If WIRow = "" Then Exit Sub
+    Else
+        WIsForm.Show
+        If WIRow = "" Then Exit Sub
+    End If
+        
+    '//Return to main page
+    WIIWB.Sheets("WI-2000").Activate
+    
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//                  GETTING DATA ABOUT WORK INSTRUCTION FROM WORKBOOKS                   //
+'///////////////////////////////////////////////////////////////////////////////////////////
+        
+        
+    '//Get WIName, wsname, PSM, dbsheetname, and fullprefix from respective WI table
+    WIName = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Work Instruction", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    WSName = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Worksheet Name", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    PSM = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Particle Size Mode", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    DBSheetname = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Database Sheetname", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    FullPrefix = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Full Prefix", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    
+    '//Get standard mass, if present, from table in respective WIType sheet in WI Index
+    standardmasscol = Application.Match("Standard Mass", WIIWB.Sheets(IndexSheetname).Rows(1), 0)
+    If IsError(standardmasscol) Then
+        StandardMass = ""
+    Else
+        StandardMass = WIIWB.Sheets(IndexSheetname).Cells(WIRow, standardmasscol)
+    End If
+    
+    '//Get pore size, if present, from table in respective WIType sheet in WI Index
+    poresizecol = Application.Match("Pore Size", WIIWB.Sheets(IndexSheetname).Rows(1), 0)
+    If IsError(poresizecol) Then
+        PoreSize = ""
+    Else
+        PoreSize = WIIWB.Sheets(IndexSheetname).Cells(WIRow, poresizecol)
+    End If
+    
+    '//Get Precursor if By Part
+    If Precursor = "By Part" Then
+        Precursor = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Precursor", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    End If
+        
+    '//Get batchtype if By Part
+    If BatchType = "By Part" Then
+        BatchType = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Batch Type", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    End If
+    
+    '//Get UniquePrompts if By Part
+    If UniquePrompts = "By Part" Then
+        UniquePrompts = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Unique Prompts", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    End If
+    
+    '//Get PrintPages if By Part
+    If PrintPages = "By Part" Then
+        PrintPages = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Print Pages", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    End If
+    
+    '//Set WIWB as respective external WI workbook
+    Workbooks.Open (WIIWB.Sheets(2).Cells(WITypeRow, 2))
+    Set WIWB = ActiveWorkbook
+        
+    '//Set DBWB as Integrated QA Database workbook
+    Workbooks.Open (WIIWB.Sheets(2).Cells(1, 2))
+    Set DBWB = ActiveWorkbook
+    DBWB.Sheets(DBSheetname).Activate
+    
+    '//Open respective sheet in respective WI workbook
+    WIWB.Sheets(WSName).Activate
+    
+    '//Place WIName in top of sheet for vlookups for bonding forms
+    If InStr(1, UniquePrompts, "Bonding", vbTextCompare) > 0 Then
+        WIWB.Sheets(WSName).Cells(1, 3) = WIName
+    End If
+ 
+    '//Get batchnum from WI sheet and make 2 digits if only 1, then set batchstring from full prefix and batchnum
+    BatchNum(0) = WIWB.Sheets(WSName).Cells(8, 20)
+    If BatchNum(0) < 10 Then
+        BatchNum(0) = "0" & BatchNum(0)
+    End If
+    BatchString(0) = FullPrefix & BatchNum(0)
+    
+    '//Get dbrownum from WI sheet
+    DBRowNum(0) = WIWB.Sheets(WSName).Cells(13, 20)
+
+
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//            GETTING STANDARD DATA ABOUT WORK INSTRUCTION FROM USER PROMPTS             //
+'///////////////////////////////////////////////////////////////////////////////////////////
+    
+NoBPROMPTSTART:
+
+    '//Get number of precursor batches being used if not fixed at 1
+    If InStr(1, UniquePrompts, "Single Input", vbTextCompare) = 0 Then
+        NoB = InputBox("How many " & Precursor & " batches are being used in batch " & BatchString(0) & "?" & Chr(10) & Chr(10) & "Max: 5")
+        If StrPtr(NoB) = 0 Then
+            Exit Sub
+        ElseIf NoB = vbNullString Or Not IsNumeric(NoB) Then
+            MsgBox ("Please enter a valid number")
+            GoTo NoBPROMPTSTART
+        End If
+    Else
+        NoB = 1
+    End If
+    
+    '//If a standard mass is present, tell user what it is during mass input
+    If StandardMass <> "" Then
+        StdMassString = Chr(10) & Chr(10) & "Standard mass is " & StandardMass & "g per batch"
+    End If
+    
+    '//Get input lots, input masses, and input SSAs (if included)
+    TotalWeight = 0
+    For i = 0 To NoB - 1
+        If i > 0 Then
+            '//If mass has already been inputed, tell user total weight that has been added during current mass input
+            TotalWeightString = Chr(10) & Chr(10) & "Current total mass: " & TotalWeight & "g"
+        End If
+        
+InputLotsPROMPTSTART:
+        
+        '//Get Lot # of input batch #i
+        InputLots(i) = InputBox("What is the Lot # of " & Precursor & " batch #" & i + 1 & "?")
+        If StrPtr(InputLots(i)) = 0 Then
+            Exit Sub
+        ElseIf InputLots(i) = vbNullString Then
+            MsgBox ("Please enter a valid lot #")
+            GoTo InputLotsPROMPTSTART
+        End If
+        
+InputWeightsPROMPTSTART:
+        
+        '//Get mass of input batch #i if mass is not fixed
+        If InStr(1, UniquePrompts, "Fixed Mass", vbTextCompare) = 0 Then
+            InputWeights(i) = InputBox("What is the mass of " & Precursor & " batch " & InputLots(i) & " - in grams (g)?" & StdMassString & TotalWeightString)
+            If StrPtr(InputWeights(i)) = 0 Then
+                Exit Sub
+            ElseIf InputWeights(i) = vbNullString Or Not IsNumeric(InputWeights(i)) Then
+                MsgBox ("Please enter a valid mass")
+                GoTo InputWeightsPROMPTSTART
+            End If
+            
+            '//Update TotalWeight
+            TotalWeight = TotalWeight + CDbl(InputWeights(i))
+        End If
+        
+        '//Get BET SSA if included
+        If InStr(1, UniquePrompts, "Bonding", vbTextCompare) > 0 Then
+        
+BET_SSAPROMPTSTART:
+            
+            BET_SSA(i) = InputBox("What is the BET SSA of " & Precursor & " batch " & InputLots(i) & " - in m^2/g?")
+            If StrPtr(BET_SSA(i)) = 0 Then
+                Exit Sub
+            ElseIf BET_SSA(i) = vbNullString Or Not IsNumeric(BET_SSA(i)) Then
+                MsgBox ("Please enter a valid BET SSA")
+                GoTo BET_SSAPROMPTSTART
+            End If
+        End If
+    Next i
+    
+    WeightedBET_SSA = 0
+    '//Weighted BET SSA calculation
+    If InStr(1, UniquePrompts, "Bonding", vbTextCompare) > 0 Then
+        For y = 0 To NoB - 1
+            WeightedBET_SSA = WeightedBET_SSA + InputWeights(y) / TotalWeight * BET_SSA(y)
+        Next y
+        WeightedBET_SSA = Round(WeightedBET_SSA, 2)
+    End If
+    
+    '//Set mass if fixed
+    If InStr(1, UniquePrompts, "Fixed Mass", vbTextCompare) > 0 Then
+        InputWeights(0) = WIWB.Sheets(WSName).Cells(12, 1)
+        TotalWeight = InputWeights(0)
+        MsgBox ("This work instruction only works with a fixed mass of " & TotalWeight & "g")
+    End If
+    
+    '//Get start date if included
+    If InStr(1, UniquePrompts, "Start Date", vbTextCompare) > 0 Then
+        DateForm.Show
+        If StartDate = "" Then Exit Sub
+    Else
+        '//Else set to current date
+        StartDate = Format(Date, "mm/dd/yyyy")
+    End If
+    
+
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//             GETTING UNIQUE DATA ABOUT WORK INSTRUCTION FROM USER PROMPTS              //
+'///////////////////////////////////////////////////////////////////////////////////////////
+
+    
+    '//Get starting pore size, number of autoclave splits and mass of each if included
+    If InStr(1, UniquePrompts, "Autoclave", vbTextCompare) > 0 Then
+        
+StartingPoreSizePROMPTSTART:
+    
+        StartingPoreSize = InputBox("What is the starting pore size of the " & Precursor & " batch (in Angstroms)?")
+        If StrPtr(StartingPoreSize) = 0 Then
+            Exit Sub
+        ElseIf StartingPoreSize = vbNullString Or Not IsNumeric(StartingPoreSize) Then
+            MsgBox ("Please enter a valid pore size")
+            GoTo StartingPoreSizePROMPTSTART
+        End If
+        
+ACSplitsPROMPTSTART:
+
+        ACSplits = InputBox("How many autoclave runs will this batch be split into?" & Chr(10) & Chr(10) & "Max: 5")
+        If StrPtr(ACSplits) = 0 Then
+            Exit Sub
+        ElseIf ACSplits = vbNullString Or Not IsNumeric(ACSplits) Then
+            MsgBox ("Please enter a valid number of splits")
+            GoTo ACSplitsPROMPTSTART
+        End If
+        
+        '//Get weight of each AC Split
+        ACSplitWeights(0) = TotalWeight
+        For k = 0 To ACSplits - 1
+            If k = ACSplits - 1 Then
+                '//weight of final split will be calculated based on weight of other splits and total weight
+                MsgBox ("Split #" & k + 1 & " will have a mass of " & ACSplitWeights(k) & " grams")
+            Else
+                '//Else copy remaining weight from total down to next index in array
+                ACSplitWeights(k + 1) = ACSplitWeights(k)
+                
+ACSplitWeightsPROMPTSTART:
+                
+                ACSplitWeights(k) = InputBox("What is the mass of split #" & k + 1 & " in grams?" & Chr(10) & Chr(10) & "Remaining mass: " & ACSplitWeights(k + 1) & "g")
+                If StrPtr(ACSplitWeights(k)) = 0 Then
+                    Exit Sub
+                ElseIf ACSplitWeights(k) = vbNullString Or Not IsNumeric(ACSplitWeights(k)) Then
+                    MsgBox ("Please enter a valid weight")
+                    GoTo ACSplitWeightsPROMPTSTART
+                End If
+                
+                '//Update remaining weight in next index of array
+                ACSplitWeights(k + 1) = ACSplitWeights(k + 1) - ACSplitWeights(k)
+            End If
+        Next k
+    End If
+    
+    '//Get number of batches being split into and set additional batchnums and batchstrings if included
+    If InStr(1, UniquePrompts, "Batch Splits", vbTextCompare) > 0 Then
+        
+BatchSplitsPROMPTSTART:
+        
+        BatchSplits = InputBox("Into how many batches is this being split?" & Chr(10) & Chr(10) & "Max: 5")
+        If StrPtr(BatchSplits) = 0 Then
+            Exit Sub
+        ElseIf BatchSplits = vbNullString Or Not IsNumeric(BatchSplits) Then
+            MsgBox ("Please enter a valid number of splits")
+            GoTo BatchSplitsPROMPTSTART
+        End If
+        
+        '//Set additional batchnums by incrementing by 1, then set batchstrings, set row in database for each batch by incrementing as well
+        If BatchSplits <> 1 Then
+            For j = 1 To BatchSplits - 1
+                BatchNum(j) = BatchNum(j - 1) + 1
+                If BatchNum(j) < 10 Then
+                    BatchNum(j) = "0" & BatchNum(j)
+                End If
+                BatchString(j) = FullPrefix & BatchNum(j)
+                
+                DBRowNum(j) = DBRowNum(j - 1) + 1
+            Next j
+        End If
+    Else
+        '//Else, set batchsplits to 1
+        BatchSplits = 1
+    End If
+    
+    '//Find weight per batch
+    BatchWeight = TotalWeight / BatchSplits
+    
+    '//Get seed lot if included
+    If InStr(1, UniquePrompts, "Seed Lot", vbTextCompare) > 0 Then
+        
+SeedLotPROMPTSTART:
+    
+        SeedLot = InputBox("What batch of 250nm SEED was used for the " & Precursor & " batch?")
+        If StrPtr(SeedLot) = 0 Then
+            Exit Sub
+        ElseIf SeedLot = vbNullString Then
+            MsgBox ("Please enter a valid batch number")
+            GoTo SeedLotPROMPTSTART
+        End If
+    End If
+    
+    
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//                                      INFO CHECK                                       //
+'///////////////////////////////////////////////////////////////////////////////////////////
+    
+    
+    '//Include information consistent across all WIs (WIType, WIName, and StartDate)
+    CheckString = _
+        "Is this information correct?" & Chr(10) & Chr(10) & "     Work Instruction Type:" & _
+        Chr(10) & "          " & WIType & Chr(10) & "     Work Instruction:" & Chr(10) & _
+        "          " & WIName & Chr(10) & "     Batch:" & Chr(10) & "          " & BatchString(0) & _
+        Chr(10) & "     Start Date:" & Chr(10) & "          " & _
+        StartDate & Chr(10)
+
+    '//Loop through input batches and include batch numbers and masses, and total weight if more than 1 batch
+    If NoB = 1 Then
+        CheckString = CheckString + _
+            "     Input Batch:" & Chr(10) & "          " & InputLots(0) & " - " & _
+            InputWeights(0) & "g"
+            
+        If WeightedBET_SSA <> 0 Then
+            CheckString = CheckString + " - " & BET_SSA(0) & "m^2/g"
+        End If
+        
+        CheckString = CheckString + Chr(10) & Chr(10)
+    Else
+        CheckString = CheckString + "     Input Batches:" & Chr(10)
+        For m = 0 To NoB - 1
+            CheckString = CheckString + _
+                "          " & InputLots(m) & " - " & InputWeights(m) & "g"
+                
+            If WeightedBET_SSA <> 0 Then
+                CheckString = CheckString + " - " & BET_SSA(m) & "m^2/g"
+            End If
+                
+            CheckString = CheckString + Chr(10)
+            If m = NoB - 1 Then
+                '//If on last input batch, add total weight underneath
+                CheckString = CheckString + _
+                    "          --------------------" & Chr(10) & "          Total - " & _
+                    TotalWeight & "g"
+                    
+                If WeightedBET_SSA <> 0 Then
+                    CheckString = CheckString + " - " & WeightedBET_SSA & "m^2/g"
+                End If
+                
+                CheckString = CheckString + Chr(10)
+            End If
+        Next m
+    End If
+    
+    '//If batchsplits isn't 1, include
+    If BatchSplits <> 1 Then
+        CheckString = CheckString + _
+            "     Batch Splits: " & BatchSplits & Chr(10)
+    End If
+    
+    '//If StartingPoreSize is set, include
+    If StartingPoreSize <> "" Then
+        CheckString = CheckString + _
+            "     Starting Pore Size: " & StartingPoreSize & "A" & Chr(10)
+    End If
+    
+    '//If ACSplits is set, include each split and its mass
+    If ACSplits <> "" Then
+        CheckString = CheckString + _
+            "     Autoclave Splits: " & ACSplits & Chr(10)
+        For n = 1 To ACSplits
+            CheckString = CheckString + _
+                "          " & n & " - " & ACSplitWeights(n - 1) & "g" & Chr(10)
+        Next n
+    End If
+    
+    '//If SeedLot set, include
+    If SeedLot <> "" Then
+        CheckString = CheckString + _
+            "     Seed Lot: " & SeedLot & Chr(10)
+    End If
+    
+    '//Prompt to confirm all included parts
+    InfoCheck = MsgBox(CheckString, vbYesNo)
+    If InfoCheck = vbNo Then
+        Exit Sub
+    End If
+    
+    
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//                     SETTING VALUES IN WORK INSTRUCTION WORKBOOK                       //
+'///////////////////////////////////////////////////////////////////////////////////////////
+    
+    
+    '//Clear old batch strings
+    If InStr(1, UniquePrompts, "Batch Splits", vbTextCompare) > 0 Then
+        WIWB.Sheets(WSName).Range("C6", "C9").ClearContents
+    End If
+    
+    '//Clear old to be recombined
+    If InStr(1, UniquePrompts, "Autoclave", vbTextCompare) > 0 Then
+        WIWB.Sheets(WSName).Range("D30", "F33").ClearContents
+    End If
+    
+    '//Set batch string(s)
+    WIWB.Sheets(WSName).Cells(5, 3) = BatchString(0)
+    If BatchSplits <> 1 Then
+        For o = 1 To BatchSplits - 1
+            WIWB.Sheets(WSName).Cells(5 + o, 3) = BatchString(o)
+        Next o
+    End If
+    
+    '//Set number of input batches, batch lots, and batch masses
+    If InStr(1, UniquePrompts, "Bonding", vbTextCompare) > 0 Then
+        '//Bonded forms are setup almost entirely different
+        '// input mass in single cell and different spot
+        '// input lots in single cell and different spot
+        WIWB.Sheets(WSName).Cells(9, 8) = TotalWeight
+        LotString = InputLots(0)
+        '//Create single string with all lots
+        If NoB > 1 Then
+            LotString = LotString + " (" & InputWeights(0) & "g)"
+            For q = 1 To NoB - 1
+                LotString = LotString + ", " & InputLots(q) & " (" & InputWeights(q) & "g)"
+            Next q
+        End If
+        WIWB.Sheets(WSName).Cells(9, 6) = LotString
+        WIWB.Sheets(WSName).Cells(10, 8) = WeightedBET_SSA
+    ElseIf InStr(1, UniquePrompts, "Single Input", vbTextCompare) > 0 Then
+        '//Single input doesn't need number of inputs or to clear out old input lots and weights
+        WIWB.Sheets(WSName).Cells(12, 1) = InputWeights(0)
+        WIWB.Sheets(WSName).Cells(12, 6) = InputLots(0)
+    Else
+        '//For standardized sheets:
+        '// clear input weights and input lots ranges
+        '// put in number of batches
+        '// put in weight and lot for each input batch
+        WIWB.Sheets(WSName).Range("A12", "A16").ClearContents
+        WIWB.Sheets(WSName).Range("F12", "F16").ClearContents
+        WIWB.Sheets(WSName).Cells(10, 5) = NoB
+        For r = 0 To NoB - 1
+            WIWB.Sheets(WSName).Cells(12 + r, 1) = InputWeights(r)
+            WIWB.Sheets(WSName).Cells(12 + r, 6) = InputLots(r)
+        Next r
+    End If
+    
+    '//Set start date if needed in WI
+    If InStr(1, UniquePrompts, "Start Date", vbTextCompare) > 0 Then
+        WIWB.Sheets(WSName).Cells(12, 9) = StartDate
+    End If
+
+    '//Set seed lot if needed in WI
+    If InStr(1, UniquePrompts, "Seed Lot", vbTextCompare) > 0 Then
+        WIWB.Sheets(WSName).Cells(18, 20) = SeedLot
+    End If
+    
+    '//Set starting pore size, autoclave splits and weight if needed in WI
+    If InStr(1, UniquePrompts, "Autoclave", vbTextCompare) > 0 Then
+        WIWB.Sheets(WSName).Cells(18, 12) = ACSplits
+        WIWB.Sheets(WSName).Cells(20, 13) = ACSplitWeights(0)
+        WIWB.Sheets(WSName).Cells(24, 1) = StartingPoreSize
+    End If
+    
+    '//Set next batch number and next database row number
+    If WIType = "Bonded Sil" Then
+        WIWB.Sheets("Part List").Cells(Application.Match(WIName, WIWB.Sheets("Part List").Range("A:A"), 0), 4) = BatchNum(BatchSplits - 1) + 1
+        WIWB.Sheets("Part List").Cells(Application.Match(WIName, WIWB.Sheets("Part List").Range("A:A"), 0), 30) = DBRowNum(BatchSplits - 1) + 1
+    Else
+        WIWB.Sheets(WSName).Cells(8, 20) = BatchNum(BatchSplits - 1) + 1
+        WIWB.Sheets(WSName).Cells(13, 20) = DBRowNum(BatchSplits - 1) + 1
+    End If
+    
+    
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//                         SETTING VALUES IN DATABASE WORKBOOK                           //
+'///////////////////////////////////////////////////////////////////////////////////////////
+    
+    
+    DBWB.Sheets(DBSheetname).Activate
+    
+    '//Set LotString (without masses)
+    LotString = InputLots(0)
+    If NoB > 1 Then
+        LotString = LotString + " (" & InputWeights(0) & "g)"
+        For s = 1 To NoB - 1
+            LotString = LotString + ", " & InputLots(s) & " (" & InputWeights(s) & "g)"
+        Next s
+    End If
+    
+    '//Set values into DBWB
+    For t = 0 To BatchSplits - 1
+        Cells(DBRowNum(t), 1).Activate
+        ActiveCell.Offset(1).EntireRow.Insert
+    
+        '//Add standard values for all WIs
+        DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 1) = BatchString(t)
+        DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 2) = StartDate
+        DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 10) = BatchWeight
+        If WIType = "Sintered Cores" Then
+            '//Sintered Cores are setup a bit differently in DB
+            DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 11) = LotString
+        Else
+            DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 9) = LotString
+        End If
+    
+        '//Set seed lot if included
+        If InStr(1, UniquePrompts, "Seed Lot", vbTextCompare) > 0 Then
+            DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 11) = SeedLot
+            DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 8) = LotString
+        End If
+        
+        '//Set starting pore size and AC Time if included
+        If InStr(1, UniquePrompts, "Autoclave", vbTextCompare) > 0 Then
+            DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 8) = WIWB.Sheets(WSName).Cells(22, 1)
+            DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 11) = StartingPoreSize
+        End If
+        
+        '//Set BET SSA if included
+        If InStr(1, UniquePrompts, "Bonding", vbTextCompare) > 0 Then
+            DBWB.Sheets(DBSheetname).Cells(DBRowNum(t), 8) = WeightedBET_SSA
+        End If
+    Next t
+    
+    
+'///////////////////////////////////////////////////////////////////////////////////////////
+'//                              PRINTING WORK INSTRUCTIONS                               //
+'///////////////////////////////////////////////////////////////////////////////////////////
+    
+    
+    '//Loop through batchsplits to print work instruction for each batch
+    For u = 0 To BatchSplits - 1
+        '//Set current batch string to "C5"
+        WIWB.Sheets(WSName).Cells(5, 3) = BatchString(u)
+        w = 1
+        
+        '//Set other batch strings to below "C5"
+        For v = 0 To BatchSplits - 1
+            If v <> u Then
+                WIWB.Sheets(WSName).Cells(5 + w, 3) = BatchString(v)
+                w = w + 1
+            End If
+        Next v
+        
+        '//Get main print (i.e. remove section in parenthesis)
+        If InStr(1, PrintPages, "(", vbTextCompare) > 0 Then
+            '//If section has parenthesis, create substring without that section
+            MainPrint = Left(PrintPages, InStr(1, PrintPages, "(", vbTextCompare) - 1)
+        Else
+            '//If section doesn't have parenthesis, set equal
+            MainPrint = PrintPages
+        End If
+        
+        If MainPrint = "All" Then
+            '//If all pages should be printed for main print, open print preview
+            WIWB.Sheets(WSName).PrintPreview
+        Else
+            '//If only specific section should be printed for main print
+            CurrentString = ""
+            RemainingString = MainPrint
+            
+            Application.Dialogs(xlDialogPrinterSetup).Show
+            
+            '//If main print contains multiple sections, work through and print each section
+            While RemainingString <> ""
+                If InStr(1, RemainingString, ",", vbTextCompare) > 0 Then
+                    '//If RemainingString contains multiple sections (has ","), set CurrentString to first section and RemainingString to rest of sections
+                    CurrentString = Left(RemainingString, InStr(1, RemainingString, ",", vbTextCompare) - 1)
+                    RemainingString = Mid(RemainingString, InStr(1, RemainingString, ",", vbTextCompare) + 1, Len(RemainingString))
+                Else
+                    '//If RemainingString only has one section (no ","), set CurrentString to RemainingString and RemainingString to empty
+                    CurrentString = RemainingString
+                    RemainingString = ""
+                End If
+                
+                '//Get starting and ending pages of current section
+                If InStr(1, CurrentString, "-", vbTextCompare) > 0 Then
+                    '//If CurrentString is range (has "-"), set PrintStart to string before "-" and PrintEnd to string after "-"
+                    PrintStart = Left(CurrentString, InStr(1, CurrentString, "-", vbTextCompare) - 1)
+                    PrintEnd = Mid(CurrentString, InStr(1, CurrentString, "-", vbTextCompare) + 1, Len(CurrentString))
+                Else
+                    '//If CurrentString is single page (no "-"), set PrintStart and PrintEnd to page
+                    PrintStart = CurrentString
+                    PrintEnd = CurrentString
+                End If
+                
+                '//Bring up print preview for current section
+                WIWB.Sheets(WSName).PrintOut From:=PrintStart, To:=PrintEnd, Preview:=True
+            Wend
+        End If
+        
+        If InStr(1, UniquePrompts, "Autoclave", vbTextCompare) > 0 Then
+            '//AC Split Print
+            If ACSplits > 1 Then
+                For x = 0 To ACSplits - 1
+                    '//Set batch with letter for split
+                    WIWB.Sheets(WSName).Cells(5, 3) = BatchString(u) & Chr(65 + x)
+                    WIWB.Sheets(WSName).Cells(20, 13) = ACSplitWeights(x)
+                    '//Set batches to be recombined with
+                    z = 0
+                    For y = 0 To ACSplits - 1
+                        If y <> x Then
+                            WIWB.Sheets(WSName).Cells(30 + z, 4) = BatchString(u) & Chr(65 + y)
+                            z = z + 1
+                        End If
+                    Next y
+                    '//Get ACPrint (i.e. part in parenthesis)
+                    ACPrint = Mid(PrintPages, InStr(1, PrintPages, "(", vbTextCompare) + 1, Len(PrintPages) - 1)
+                    ACPrint = Left(ACPrint, Len(ACPrint) - 1)
+                    
+                    If ACPrint = "All" Then
+                        '//If all pages should be printed, open print preview
+                        WIWB.Sheets(WSName).PrintPreview
+                    Else
+                        '//If only specific section should be printed for main print
+                        CurrentString = ""
+                        RemainingString = ACPrint
+                        
+                        Application.Dialogs(xlDialogPrinterSetup).Show
+                        
+                        '//If ACPrint contains multiple sections, work through and print each section
+                        While RemainingString <> ""
+                            If InStr(1, RemainingString, ",", vbTextCompare) > 0 Then
+                                '//If RemainingString contains multiple sections (has ","), set CurrentString to first section and RemainingString to rest of sections
+                                CurrentString = Left(RemainingString, InStr(1, RemainingString, ",", vbTextCompare) - 1)
+                                RemainingString = Mid(RemainingString, InStr(1, RemainingString, ",", vbTextCompare) + 1, Len(RemainingString))
+                            Else
+                                '//If RemainingString only has one section (no ","), set CurrentString to RemainingString and RemainingString to empty
+                                CurrentString = RemainingString
+                                RemainingString = ""
+                            End If
+                            
+                            '//Get starting and ending pages of current section
+                            If InStr(1, CurrentString, "-", vbTextCompare) > 0 Then
+                                '//If CurrentString is range (has "-"), set PrintStart to string before "-" and PrintEnd to string after "-"
+                                PrintStart = Left(CurrentString, InStr(1, CurrentString, "-", vbTextCompare) - 1)
+                                PrintEnd = Mid(CurrentString, InStr(1, CurrentString, "-", vbTextCompare) + 1, Len(CurrentString))
+                            Else
+                                '//If CurrentString is single page (no "-"), set PrintStart and PrintEnd to page
+                                PrintStart = CurrentString
+                                PrintEnd = CurrentString
+                            End If
+                            
+                            '//Bring up print preview for current section
+                            WIWB.Sheets(WSName).PrintOut From:=PrintStart, To:=PrintEnd, Preview:=True
+                        Wend
+                    End If
+                Next x
+            ElseIf ACSplits = 1 Then
+                '//Get ACPrint (i.e. part in parenthesis)
+                ACPrint = Mid(PrintPages, InStr(1, PrintPages, "(", vbTextCompare) + 1, Len(PrintPages) - 1)
+                ACPrint = Left(ACPrint, Len(ACPrint) - 1)
+                
+                If ACPrint = "All" Then
+                    '//If all pages should be printed, open print preview
+                    WIWB.Sheets(WSName).PrintPreview
+                Else
+                    '//If only specific section should be printed for main print
+                    CurrentString = ""
+                    RemainingString = ACPrint
+                    
+                    Application.Dialogs(xlDialogPrinterSetup).Show
+                    
+                    '//If ACPrint contains multiple sections, work through and print each section
+                    While RemainingString <> ""
+                        If InStr(1, RemainingString, ",", vbTextCompare) > 0 Then
+                            '//If RemainingString contains multiple sections (has ","), set CurrentString to first section and RemainingString to rest of sections
+                            CurrentString = Left(RemainingString, InStr(1, RemainingString, ",", vbTextCompare) - 1)
+                            RemainingString = Mid(RemainingString, InStr(1, RemainingString, ",", vbTextCompare) + 1, Len(RemainingString))
+                        Else
+                            '//If RemainingString only has one section (no ","), set CurrentString to RemainingString and RemainingString to empty
+                            CurrentString = RemainingString
+                            RemainingString = ""
+                        End If
+                        
+                        '//Get starting and ending pages of current section
+                        If InStr(1, CurrentString, "-", vbTextCompare) > 0 Then
+                            '//If CurrentString is range (has "-"), set PrintStart to string before "-" and PrintEnd to string after "-"
+                            PrintStart = Left(CurrentString, InStr(1, CurrentString, "-", vbTextCompare) - 1)
+                            PrintEnd = Mid(CurrentString, InStr(1, CurrentString, "-", vbTextCompare) + 1, Len(CurrentString))
+                        Else
+                            '//If CurrentString is single page (no "-"), set PrintStart and PrintEnd to page
+                            PrintStart = CurrentString
+                            PrintEnd = CurrentString
+                        End If
+                        
+                        '//Bring up print preview for current section
+                        WIWB.Sheets(WSName).PrintOut From:=PrintStart, To:=PrintEnd, Preview:=True
+                    Wend
+                End If
+            End If
+        End If
+    Next u
+End Sub
