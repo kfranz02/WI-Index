@@ -1,0 +1,35 @@
+Private Sub UserForm_Initialize()
+    '//Update caption with respective WIType and set userform to appear near middle of screen
+    Label1.Caption = "Select the " & Sheet2.Cells(WITypeRow, 1) & " Work Instruction"
+    Me.StartUpPosition = 0
+    Me.Top = Application.Top + 220
+    Me.Left = Application.Left + Application.Width - Me.Width - 570
+    
+    '//Clear combo box
+    WIComboBox.Clear
+    
+    '//Populate combo box from all work instructions within WIType
+    For i = 2 To Sheets(IndexSheetname).ListObjects(TableName).ListRows.Count + 1
+        WIComboBox.AddItem Sheets(IndexSheetname).Cells(i, Application.Match("Work Instruction", Sheets(IndexSheetname).Rows(1), 0))
+    Next i
+End Sub
+
+Private Sub SubmitButton_Click()
+    '//If a work instruction is selected, will find and set the row of the work instruction and exit user form, else do nothing
+    If WIComboBox.Value <> "" Then
+        WIRow = Application.Match(WIComboBox.Value, Sheets(IndexSheetname).Range("A:A"), 0)
+        Unload WIsForm
+    End If
+End Sub
+
+Private Sub CancelButton_Click()
+    '//If cancel is pressed, user form exited
+    Sheets("WI-2000").Activate
+    Unload WIsForm
+End Sub
+
+Private Sub UserForm_Terminate()
+    '//If red 'x' is pressed, user form exited
+    Sheets("WI-2000").Activate
+    Unload WIsForm
+End Sub
