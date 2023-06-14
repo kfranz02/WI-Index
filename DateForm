@@ -1,0 +1,39 @@
+
+
+Private Sub UserForm_Initialize()
+    '//Clear textbox on start and set location of form
+    DateTextBox.Value = ""
+    Me.StartUpPosition = 0
+    Me.Top = Application.Top + 220
+    Me.Left = Application.Left + Application.Width - Me.Width - 570
+End Sub
+
+Private Sub TodayButton_Click()
+    '//Enter current date if today is clicked
+    DateTextBox.Value = Format(Date, "mm/dd/yyyy")
+End Sub
+
+Private Sub SubmitButton_Click()
+    '//If DateTextBox isn't empty: if it is correct format then set startdate and exit, otherwise prompt for a valid date
+    If DateTextBox.Value <> "" Then
+        If Len(DateTextBox.Value) <> 10 Or Not IsNumeric(Left(DateTextBox.Value, 2)) Or Left(DateTextBox.Value, 2) > 12 Or _
+         Mid(DateTextBox.Value, 3, 1) <> "/" Or Not IsNumeric(Mid(DateTextBox.Value, 4, 2)) Or Mid(DateTextBox.Value, 4, 2) > 31 Or _
+         Mid(DateTextBox.Value, 6, 1) <> "/" Or Not IsNumeric(Right(DateTextBox.Value, 4)) Then
+            MsgBox ("Please enter valid date")
+            DateTextBox.Value = ""
+        Else
+            StartDate = DateTextBox.Value
+            Unload DateForm
+        End If
+    End If
+End Sub
+
+Private Sub CancelButton_Click()
+    '//If cancel is pressed, user form exited
+    Unload DateForm
+End Sub
+
+Private Sub UserForm_Terminate()
+    '//If red 'x' is pressed, user form exited
+    Unload DateForm
+End Sub
