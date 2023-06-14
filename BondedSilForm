@@ -1,0 +1,77 @@
+
+Private Sub UserForm_Initialize()
+    '//Set user form to appear roughly middle of screen
+    Me.StartUpPosition = 0
+    Me.Top = Application.Top + 220
+    Me.Left = Application.Left + Application.Width - Me.Width - 570
+    
+    '//Clear all combo boxes
+    PartsComboBox.Clear
+    PSMComboBox.Clear
+    PoreSizeComboBox.Clear
+    
+    '//Populate PSMComboBox using dictionary object to avoid duplicates
+    Dim dict As Scripting.Dictionary
+    Set dict = New Scripting.Dictionary
+    For i = 2 To Sheets(IndexSheetname).ListObjects(TableName).ListRows.Count + 1
+        If Not dict.Exists(Sheets(IndexSheetname).Cells(i, Application.Match("Particle Size Mode", Sheets(IndexSheetname).Rows(1), 0)).Value) Then
+            dict.Add Sheets(IndexSheetname).Cells(i, Application.Match("Particle Size Mode", Sheets(IndexSheetname).Rows(1), 0)).Value, 0
+            PSMComboBox.AddItem Sheets(IndexSheetname).Cells(i, Application.Match("Particle Size Mode", Sheets(IndexSheetname).Rows(1), 0)).Value
+        End If
+    Next i
+End Sub
+
+Private Sub PSMComboBox_Change()
+    '//Clear PoreSizeComboBox
+    PoreSizeComboBox.Clear
+    
+    '//Populate PoreSizeComboBox using dictionary object to avoid duplicates
+    Dim dict As Scripting.Dictionary
+    Set dict = New Scripting.Dictionary
+    For i = 2 To Sheets(IndexSheetname).ListObjects(TableName).ListRows.Count + 1
+        If Sheets(IndexSheetname).Cells(i, Application.Match("Particle Size Mode", Sheets(IndexSheetname).Rows(1), 0)).Value = PSMComboBox.Value Then
+            If Not dict.Exists(Sheets(IndexSheetname).Cells(i, Application.Match("Pore Size", Sheets(IndexSheetname).Rows(1), 0)).Value) Then
+                dict.Add Sheets(IndexSheetname).Cells(i, Application.Match("Pore Size", Sheets(IndexSheetname).Rows(1), 0)).Value, 0
+                PoreSizeComboBox.AddItem Sheets(IndexSheetname).Cells(i, Application.Match("Pore Size", Sheets(IndexSheetname).Rows(1), 0)).Value
+            End If
+        End If
+    Next i
+End Sub
+
+Private Sub PoreSizeComboBox_Change()
+    '//Clear PartsComboBox
+    PartsComboBox.Clear
+    
+    '//Populate PartsComboBox (all Parts unique so dictionary is not needed)
+    For i = 2 To Sheets(IndexSheetname).ListObjects(TableName).ListRows.Count + 1
+        If Sheets(IndexSheetname).Cells(i, Application.Match("Particle Size Mode", Sheets(IndexSheetname).Rows(1), 0)).Value = PSMComboBox.Value And Sheets(IndexSheetname).Cells(i, Application.Match("Pore Size", Sheets(IndexSheetname).Rows(1), 0)).Value = PoreSizeComboBox.Value Then
+            PartsComboBox.AddItem Sheets(IndexSheetname).Cells(i, Application.Match("Work Instruction", Sheets(IndexSheetname).Rows(1), 0)).Value
+        End If
+    Next i
+End Sub
+
+Private Sub SubmitButton_Click()
+    '//If a part is selected, will find and set the row of the work instruction and exit user form, else do nothing
+    If PartsComboBox.Value <> "" Then
+        For i = 2 To Sheets(IndexSheetname).ListObjects(TableName).ListRows.Count + 1
+            If Sheets(IndexSheetname).Cells(i, Application.Match("Particle Size Mode", Sheets(IndexSheetname).Rows(1), 0)).Value = PSMComboBox.Value And Sheets(IndexSheetname).Cells(i, Application.Match("Pore Size", Sheets(IndexSheetname).Rows(1), 0)).Value = PoreSizeComboBox.Value And Sheets(IndexSheetname).Cells(i, Application.Match("Work Instruction", Sheets(IndexSheetname).Rows(1), 0)).Value = PartsComboBox.Value Then
+                WIRow = i
+                Exit For
+            End If
+        Next i
+        
+        Unload BondedSilForm
+    End If
+End Sub
+
+Private Sub CancelButton_Click()
+    '//If cancel is pressed, user form exited
+    Sheets("WI-2000").Activate
+    Unload BondedSilForm
+End Sub
+
+Private Sub UserForm_Terminate()
+    '//If red 'x' is pressed, user form exited
+    Sheets("WI-2000").Activate
+    Unload BondedSilForm
+End Sub
