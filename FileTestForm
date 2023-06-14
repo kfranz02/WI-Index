@@ -1,0 +1,34 @@
+
+Private Sub UserForm_Initialize()
+    '//set userform to appear near middle of screen
+    Me.StartUpPosition = 0
+    Me.Top = Application.Top + 220
+    Me.Left = Application.Left + Application.Width - Me.Width - 570
+    
+    '//Clear combo box
+    OtherWITypeComboBox.Clear
+    
+    '//Populate combo box with work instruction types other than original 6
+    For i = 4 To Sheets("WI Files").ListObjects("WIFiles").ListRows.Count + 3
+        OtherWITypeComboBox.AddItem Sheets("WI Files").Cells(i, 1)
+    Next i
+End Sub
+
+Private Sub SubmitButton_Click()
+    '//If combo box has value in it, set WIType and exit, else do nothing
+    If OtherWITypeComboBox.Value <> "" Then
+        WIType = OtherWITypeComboBox.Value
+        Unload Me
+    End If
+End Sub
+
+Private Sub CancelButton_Click()
+    '//If cancel clicked, exit
+    Unload Me
+End Sub
+
+Private Sub UserForm_Terminate()
+    '//If red 'x' pressed, exit
+    Unload Me
+End Sub
+
