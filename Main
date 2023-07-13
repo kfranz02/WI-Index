@@ -1,6 +1,7 @@
-'//Written by Intern Kyle Franz - Summer of 2022
-'//Version 2000: attempt to clean up code and add accessibility to add work instructions (written from scratch)
-'// https://github.com/kfranz02/WI-Index
+'//Rewritten by Intern Kyle Franz Summer of 2022
+'// overhauled old system to allow easier addition of new work instructions
+'// setup also enables customization by user in excel tables (i.e. they don't need to know how to use VBA or read any of this)
+'// began tracking code changes in repository --> https://github.com/kfranz02/WI-Index
 
 '//These variables are public so the user forms can get/set them
 Public WITypeRow As Integer 'Row of work instruction type in WI files
@@ -455,8 +456,8 @@ SeedLotPROMPTSTART:
     
         '//Only prompt if cell for rework info has valid value for rework
         If WIWB.Sheets(WSName).Cells(18, 20) <> "N/A" And WIWB.Sheets(WSName).Cells(18, 20) <> "" Then
-            Answer = MsgBox("Is the bonding a re-endcapping?", vbYesNo)
-            If Answer = vbYes Then
+            Answer = MsgBox("Is this a brand new bonding?" & Chr(10) & Chr(10) & "     Yes - Print standard pages" & Chr(10) & "     No - Bonding rework/re-endcap, print only endcap steps", vbYesNo)
+            If Answer = vbNo Then
                 BondingRework = True
             End If
         End If
