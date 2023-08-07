@@ -3,6 +3,7 @@
 '// setup also enables customization by user in excel tables (i.e. they don't need to know how to use VBA or read any of this)
 '// began tracking code changes in repository --> https://github.com/kfranz02/WI-Index
 
+
 '//These variables are public so the user forms can get/set them
 Public WITypeRow As Integer 'Row of work instruction type in WI files
 Public IndexSheetname As String 'Name of sheet for respective work instruction type within WIIWB
@@ -57,8 +58,10 @@ Sub Other_Click()
     
     '//If not only 6 items in table, activate OtherWITypeForm to get WIType
     OtherWITypeFOrm.Show
+    
     '//If WIType wasn't set (form was exited), exit
     If WIType = "" Then Exit Sub
+    
     '//If WIType was set, call main
     Call Main
 End Sub
@@ -80,7 +83,6 @@ Sub Main()
     
     
     Dim WIIWB As Workbook 'Work instruction index workbook
-    Dim BatchType As String 'Name of finished batch of WI
     Dim Precursor As String 'Name of batch precursor of WI
     Dim UniquePrompts As String 'String containing unique prompts of WI
     Dim PrintPages As String 'String containing which pages need to be printed
@@ -92,13 +94,12 @@ Sub Main()
     '//Get the correct row in "WI Files" sheet based on which button was clicked
     WITypeRow = Application.Match(WIType, WIIWB.Sheets(2).Range("A:A"), 0)
     
-    '//Get the index sheetname, index tablename, batchtype, precursor, and unique prompts from "WI Files" sheet
-    IndexSheetname = WIIWB.Sheets(2).Cells(WITypeRow, 3)
-    TableName = WIIWB.Sheets(2).Cells(WITypeRow, 4)
-    BatchType = WIIWB.Sheets(2).Cells(WITypeRow, 5)
-    Precursor = WIIWB.Sheets(2).Cells(WITypeRow, 6)
-    UniquePrompts = WIIWB.Sheets(2).Cells(WITypeRow, 7)
-    PrintPages = WIIWB.Sheets(2).Cells(WITypeRow, 8)
+    '//Get the index sheetname, index tablename, precursor, and unique prompts from "WI Files" sheet
+    IndexSheetname = WIIWB.Sheets(2).Cells(WITypeRow, Application.Match("Index Sheetname", WIIWB.Sheets(2).Rows(3), 0))
+    TableName = WIIWB.Sheets(2).Cells(WITypeRow, Application.Match("Table Name", WIIWB.Sheets(2).Rows(3), 0))
+    Precursor = WIIWB.Sheets(2).Cells(WITypeRow, Application.Match("Precursor", WIIWB.Sheets(2).Rows(3), 0))
+    UniquePrompts = WIIWB.Sheets(2).Cells(WITypeRow, Application.Match("Unique Prompts", WIIWB.Sheets(2).Rows(3), 0))
+    PrintPages = WIIWB.Sheets(2).Cells(WITypeRow, Application.Match("Print Pages", WIIWB.Sheets(2).Rows(3), 0))
     
     '//Open the respective sheet within WI Index
     WIIWB.Sheets(IndexSheetname).Activate
@@ -113,14 +114,17 @@ Sub Main()
     '//  Bonded Sil has unique form for easier use given the greater number of options
     If WIType = "Bonded Sil" Then
         BondedSilForm.Show
-        If WIRow = "" Then Exit Sub
+        If WIRow = "" Then '//If nothing was set then quit
+            WIIWB.Sheets("WI Index").Activate
+            Exit Sub
+        End If
     Else
         WIsForm.Show
-        If WIRow = "" Then Exit Sub
+        If WIRow = "" Then '//If nothing was set then quit
+            WIIWB.Sheets("WI Index").Activate
+            Exit Sub
+        End If
     End If
-    
-    '//Return to main page
-    WIIWB.Sheets("WI-2000").Activate
     
     
 '///////////////////////////////////////////////////////////////////////////////////////////
@@ -129,10 +133,11 @@ Sub Main()
     
     
     Dim WIName As String 'Work instruction name
-    Dim WSName As String 'Name of work instruction worksheet within respectice work instruction file
     Dim PSM As String 'Particle size mode of part
-    Dim DBSheetname As String 'Name of sheet for respective work instruction in Integrated QA Database
     Dim FullPrefix As String 'Full part prefix including year
+    Dim WSName As String 'Name of work instruction worksheet within respectice work instruction file
+    Dim DBSheetname As String 'Name of sheet for respective work instruction in Integrated QA Database
+    
     '//NOTE: StandardMassCol not declared to allow it to be an error type when applicable, needed for how application.match is used
     Dim StandardMass As String 'Standard core/seed mass
     '//NOTE: PoreSizeCol not declared to allow it to be an error type when applicable, needed for how application.match is used
@@ -144,12 +149,13 @@ Sub Main()
     Dim DBRowNum(4) As String 'Array of number row in database for each split (max 5 elements: 0,1,2,3,4)
     
      
-    '//Get WIName, wsname, PSM, dbsheetname, and fullprefix from respective WI table
+    '//Get WIName, PSM, full prefix, WSName, and DBsheetname from respective WI table
     WIName = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Work Instruction", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
-    WSName = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Worksheet Name", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
     PSM = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Particle Size Mode", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
-    DBSheetname = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Database Sheetname", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
     FullPrefix = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Full Prefix", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    WSName = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Worksheet Name", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    DBSheetname = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Database Sheetname", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
+    
     
     '//Get standard mass, if present, from table in respective WIType sheet in WI Index
     StandardMassCol = Application.Match("Standard Mass", WIIWB.Sheets(IndexSheetname).Rows(1), 0)
@@ -167,11 +173,6 @@ Sub Main()
         PoreSize = WIIWB.Sheets(IndexSheetname).Cells(WIRow, PoreSizeCol)
     End If
     
-    '//Get BatchType if By Part
-    If BatchType = "By Part" Then
-        BatchType = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Batch Type", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
-    End If
-    
     '//Get Precursor if By Part
     If Precursor = "By Part" Then
         Precursor = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Precursor", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
@@ -186,6 +187,7 @@ Sub Main()
     If PrintPages = "By Part" Then
         PrintPages = WIIWB.Sheets(IndexSheetname).Cells(WIRow, Application.Match("Print Pages", WIIWB.Sheets(IndexSheetname).Rows(1), 0))
     End If
+    
     
     '//Set DBWB as Integrated QA Database workbook
     Workbooks.Open (WIIWB.Sheets(2).Cells(1, 2))
@@ -670,7 +672,7 @@ SeedLotPROMPTSTART:
     End If
     
     '//Reformat based on if bonding is rework or not
-    If InStr(1, UniquePrompts, "Bonding", vbTextCompare) > 0 Then
+    If InStr(1, UniquePrompts, "Bonding", vbTextCompare) > 0 And WIWB.Sheets(WSName).Cells(18, 20) <> "N/A" Then
         If BondingRework Then
             '//If rework:
             '// Add re-endcapping only text and format
@@ -802,9 +804,9 @@ SeedLotPROMPTSTART:
     '//Set LotString for database (with masses)
     LotString = InputLots(0)
     If NoB > 1 Then
-        LotString = LotString + " (" & InputWeights(0) & "g)"
+        LotString = LotString + " (" & Round(InputWeights(0) / BatchSplits, 2) & "g)"
         For i = 1 To NoB - 1
-            LotString = LotString + ", " & InputLots(i) & " (" & InputWeights(i) & "g)"
+            LotString = LotString + ", " & InputLots(i) & " (" & Round(InputWeights(i) / BatchSplits, 2) & "g)"
         Next i
     End If
     
@@ -813,7 +815,8 @@ SeedLotPROMPTSTART:
     For i = 0 To BatchSplits - 1
         '//Add new row below last entry in database
         Cells(DBRowNum(i), 1).Activate
-        ActiveCell.Offset(1).EntireRow.Insert
+        ActiveCell.EntireRow.Insert
+        DBWB.Sheets(DBSheetname).Rows(DBRowNum(i)).ClearFormats
     
         '//Add batch strings, start dates, and batch weights for all WIs
         DBWB.Sheets(DBSheetname).Cells(DBRowNum(i), 1) = BatchString(i)
